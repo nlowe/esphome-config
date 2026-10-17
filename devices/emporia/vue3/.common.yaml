@@ -1,0 +1,97 @@
+esphome:
+  name: "${device_name}"
+  area: "Unfinished Basement"
+  friendly_name: "emporia ${device_name}"
+  name_add_mac_suffix: false
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    version: recommended
+    advanced:
+      minimum_chip_revision: "3.1"
+
+packages:
+  alloy: !include /data/configs/packages/alloy.yaml
+  ethernet_static_ip: !include
+    file: /data/configs/packages/ethernet_static_ip.yaml
+    vars:
+      device_ip: "${device_ip}"
+  ota: !include
+    file: /data/configs/packages/ota.yaml
+    vars:
+      device_api_key: "${device_api_key}"
+  time: !include /data/configs/packages/time.yaml
+
+external_components:
+  - source: github://emporia-vue-local/esphome@dev
+    components:
+      - emporia_vue
+
+# The restart button platform allows you to restart your node remotely through Home Assistant.
+button:
+  - platform: restart
+    name: Restart
+    id: restart_button
+    icon: mdi:restart
+
+  - platform: safe_mode
+    name: Restart (Safe Mode)
+    id: safe_mode_button
+    icon: mdi:restart-alert
+
+logger:
+  logs:
+    # by default, every reading will be printed to the UART, which is very slow
+    # This will disable printing the readings but keep other helpful messages
+    sensor: INFO
+
+preferences:
+  # avoid wearing out the flash lifespan with rapidly-updating sensor data!
+  # please also make sure `restore: false` is set on all `platform: total_daily_energy` sensors below.
+  flash_write_interval: "48h"
+
+# Configure the two status LEDs on the Emporia Vue v3 case
+# https://github.com/emporia-vue-local/esphome/discussions/264#discussioncomment-9788390
+light:
+  - platform: status_led
+    id: wifi_led
+    pin:
+      number: 2
+      ignore_strapping_warning: true
+    restore_mode: ALWAYS_OFF
+
+  - platform: status_led
+    id: ethernet_led
+    pin: 4
+    restore_mode: ALWAYS_OFF
+
+i2c:
+  sda:
+    number: 5
+    ignore_strapping_warning: true
+  scl: 18
+  scan: false
+  frequency: 400kHz
+  timeout: 1ms
+  id: i2c_a
+
+ethernet:
+  type: RTL8201
+  mdc_pin: GPIO32
+  mdio_pin: GPIO33
+  clk:
+    mode: CLK_EXT_IN
+    pin:
+      number: 0
+      ignore_strapping_warning: true
+  on_connect:
+    - light.turn_on: ethernet_led
+  on_disconnect:
+    - light.turn_off: ethernet_led
+
+
+# Enable Web server.
+web_server:
+  port: 80

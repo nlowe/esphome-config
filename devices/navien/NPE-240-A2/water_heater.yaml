@@ -1,0 +1,381 @@
+# This configuration file is for an M5Stacks AtomS3-Lite with the Tail485 add-on.
+#
+# Tail485 wiring:
+#
+# | Tail485      | 5-pin connector #1 |
+# |--------------|--------------------|
+# | B   (Blue)   | pin 2              |
+# | A   (Yellow) | pin 3              |
+# | 12V (Red)    | pin 1              |
+# | GND (Black)  | pin 5              |
+#
+# Confirm first that your Navien delivers +12V (give or take a volt) on pin 1 (true on an NPE-240-A2 at least)
+#
+# See [the 240 wiring docs](docs/240.md) for more info
+#
+# DHW: Domestic Hot Water
+# SH: Space Heat
+
+packages:
+  alloy: !include /data/configs/packages/alloy.yaml
+  ota: !include
+    file: /data/configs/packages/ota.yaml
+    vars:
+      device_api_key: !secret navien__NPE-240-A2__water_heater__api_encryption_key
+  time: !include /data/configs/packages/time.yaml
+  wifi: !include /data/configs/packages/wifi.yaml
+  wifi_ble_proxy: !include /data/configs/packages/wifi_ble_proxy.yaml
+
+substitutions:
+  tx_pin: GPIO26
+  rx_pin: GPIO32
+  led_pin: GPIO27
+  friendly_name: Water heater
+
+esphome:
+  name: water-heater
+  friendly_name: Water heater
+  comment: Navien NPE-240A2 Tankless Water Heater
+  on_boot:
+    priority: 500
+    then:
+      - light.turn_on:
+          id: led
+          brightness: 80%
+          red: 100%
+          green: 100%
+          blue: 0%
+  on_shutdown:
+    priority: -100
+    then:
+      - light.turn_on:
+          id: led
+          brightness: 80%
+          red: 0%
+          green: 0%
+          blue: 100%
+
+esp32:
+  board: m5stack-atom
+  framework:
+    type: esp-idf
+    advanced:
+      sram1_as_iram: true
+
+logger:
+  level: INFO
+  baud_rate: 0 #disable logging over uart
+
+api:
+  reboot_timeout: 0s
+
+external_components:
+    # See the following:
+    #  * https://github.com/htumanyan/navien/blob/main/esphome/navien-esphome-atoms3-lite-tail485-esp32.yml
+    #  * https://github.com/htumanyan/navien/blob/main/esphome/navien-base.yml
+    #  * https://github.com/htumanyan/navien/blob/main/esphome/navien-sensors.yml
+    #  * https://github.com/htumanyan/navien/blob/main/esphome/navien-water-heater.yml
+    #  * https://github.com/htumanyan/navien/blob/main/esphome/navien.yml
+  - source: github://htumanyan/navien
+    refresh: 1h
+    components: [ navien ]
+
+# Enable BLE IRK capture by spoofing a heart sensor
+# packages:
+#   device:
+#     url: https://github.com/DerekSeaman/irk-capture
+#     ref: main
+#     file: ESPHome Devices/irk-capture-base.yaml
+#     refresh: always
+
+uart:
+  tx_pin: ${tx_pin}
+  rx_pin: ${rx_pin}
+
+  baud_rate: 19200
+  stop_bits: 1
+  parity: none
+  rx_buffer_size: 8192
+  id: main_hw_uart
+
+button:
+  - platform: navien
+    name: ${friendly_name} Hot Button
+
+  - platform: restart
+    name: Restart
+    id: restart_button
+    icon: mdi:restart
+
+  - platform: safe_mode
+    name: Restart (Safe Mode)
+    id: safe_mode_button
+    icon: mdi:restart-alert
+
+light:
+  - platform: esp32_rmt_led_strip
+    internal: true
+    chipset: SK6812
+    pin: ${led_pin}
+    num_leds: 1
+    channel_colors: GRB
+    id: led
+    name: "Indicator Light"
+
+switch:
+  - platform: navien
+    navien: navien_main
+    type: power
+    name: ${friendly_name} Main Power
+    id: main_power
+  # "Allow Recirculation" turns on recirculation when the water heater is not in HotButton mode
+  - platform: navien
+    navien: navien_main
+    type: allow_scheduled_recirc
+    name: "${friendly_name} Allow Recirculation"
+    id: allow_scheduled_recirc
+
+binary_sensor:
+  - platform: status
+    name: ESP Status
+
+sensor:
+  - platform: navien
+    id: navien_main
+    src: 0
+    name: "${friendly_name} Metrics"
+    uart_id: main_hw_uart
+    dhw_set_temperature:
+      id: navien_set_temperature
+      name: "${friendly_name} Set Temp"
+      filters:
+        - lambda: return x * (9.0/5.0) + 32.0;
+      unit_of_measurement: "°F"
+      device_class: temperature
+      state_class: measurement
+    inlet_temperature:
+      name: "${friendly_name} Inlet Temp"
+      filters:
+        - lambda: return x * (9.0/5.0) + 32.0;
+      unit_of_measurement: "°F"
+      device_class: temperature
+      state_class: measurement
+    outlet_temperature:
+      name: "${friendly_name} Outlet Temp"
+      filters:
+        - lambda: return x * (9.0/5.0) + 32.0;
+      unit_of_measurement: "°F"
+      device_class: temperature
+      state_class: measurement
+    outdoor_temperature:
+      name: "${friendly_name} Outdoor Temp"
+      filters:
+        - lambda: return x * (9.0/5.0) + 32.0;
+      unit_of_measurement: "°F"
+      device_class: temperature
+      state_class: measurement
+      disabled_by_default: true
+    water_flow:
+      name: "${friendly_name} Water Flow"
+      id: water_flow
+      filters:
+        - lambda: return x / 3.785;
+      state_class: measurement
+      unit_of_measurement: "gal/min"
+      device_class: volume_flow_rate
+    water_utilization:
+      name: "${friendly_name} Water Capacity Utilization"
+      unit_of_measurement: "%"
+    heat_capacity:
+      name: "${friendly_name} Heat Capacity"
+      unit_of_measurement: "%"
+      accuracy_decimals: 1
+    gas_total:
+      name: "${friendly_name} Accumulated Gas Usage"
+      id: gas_total_therms
+      # Navien reports accumulated gas in m³/10.
+      # 1 m³ gas = 9131 kcal; 1 Therm = 25193 kcal.
+      filters:
+        - lambda: return x * 9131.0 / 25193.0 / 10.0;
+      unit_of_measurement: "Therms"
+      device_class: gas
+      state_class: total_increasing
+      accuracy_decimals: 1
+    gas_current:
+      # Navien reports instantaneous gas usage in 10x kcal/hr.
+      # 1 kcal = 3.968 BTU; the 10x factor is confirmed by comparing
+      # against the reported heat capacity percentage.
+      name: "${friendly_name} Current Gas Usage"
+      id: gas_current_btu
+      filters:
+        - lambda: return x * 3.9680;
+      unit_of_measurement: "BTU"
+      device_class: gas
+      state_class: measurement
+      accuracy_decimals: 1
+    total_dhw_usage:
+      name: "${friendly_name} Total Hot Water Uses"
+      accuracy_decimals: 0
+    total_operating_time:
+      name: "${friendly_name} Total Operating Time"
+      unit_of_measurement: "H"
+    total_dhw_usage_hours:
+      name: "${friendly_name} Total Hot Water Operating Time"
+      unit_of_measurement: "H"
+    days_since_install:
+      name: "${friendly_name} Days Since Install"
+      accuracy_decimals: 0
+    conn_status:
+      id: conn_status
+      name: "${friendly_name} Connection Status"
+    recirc_mode:
+      id: recirc_mode
+      name: "${friendly_name} Recirculation Mode"
+    boiler_active:
+      id: boiler_active
+      name: "${friendly_name} Boiler Active"
+    recirc_running:
+      id: recirc_running
+      name: "${friendly_name} Recirculation Running"
+    # this will be true if another NaviLink device is also connected
+    other_navilink_installed:
+      id: other_navilink_installed
+      name: "${friendly_name} Other NaviLink Installed"
+    error_code:
+      id: error_code
+      name: "${friendly_name} Error Code"
+    error_level:
+      id: error_level
+      name: "${friendly_name} Error Level"
+
+  - platform: copy
+    source_id: gas_total_therms
+    name: "${friendly_name} Accumulated Gas Usage CCF"
+    unit_of_measurement: "CCF"
+    device_class: gas
+    state_class: total_increasing
+    filters:
+      - lambda: return x / 1.038;
+    accuracy_decimals: 1
+    # Instantaneous gas usage in kW (power, not energy).
+    # The legacy BTU sensor value is 1/10 of actual BTU/hr (see gas_current
+    # comments above), so we correct by 10x and convert BTU/hr to kW.
+    # 1 kW = 3412 BTU/hr.
+  - platform: copy
+    source_id: gas_current_btu
+    name: "${friendly_name} Current Gas Usage kW"
+    unit_of_measurement: "kW"
+    device_class: power
+    state_class: measurement
+    filters:
+      - lambda: return x * 10.0 / 3412.0;
+    accuracy_decimals: 1
+
+    # network sensors
+  - platform: wifi_signal # Reports the WiFi signal strength/RSSI in dB
+    name: "ESP WiFi Signal dB"
+    id: wifi_signal_db
+    icon: mdi:wifi-arrow-up-down
+    device_class: signal_strength
+    state_class: measurement
+    unit_of_measurement: dBm
+    update_interval: 60s
+    entity_category: "diagnostic"
+  - platform: copy # Reports the WiFi signal strength in %
+    source_id: wifi_signal_db
+    name: "ESP WiFi Signal Percent"
+    icon: mdi:wifi
+    filters:
+      - lambda: return min(max(2 * (x + 100.0), 0.0), 100.0);
+    unit_of_measurement: "Signal %"
+    entity_category: "diagnostic"
+    device_class: ""
+
+    #esp sensors
+  - platform: uptime
+    name: ESP Uptime Sensor
+  - platform: internal_temperature
+    name: "ESP Internal Temperature"
+  - platform: template
+    id: esp_memory
+    icon: mdi:memory
+    name: ESP Free Memory
+    lambda: return heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024;
+    unit_of_measurement: 'kB'
+    state_class: measurement
+    entity_category: "diagnostic"
+
+  - platform: integration
+    integration_method: left
+    restore: true
+    name: "Total Daily Water Usage"
+    sensor: water_flow
+    time_unit: min
+    device_class: water
+    state_class: total_increasing
+    unit_of_measurement: gal
+
+text_sensor:
+  - platform: version
+    name: "${friendly_name} ESPHome Version"
+    id: esphome_version
+    hide_timestamp: True
+  - platform: wifi_info
+    ip_address:
+      id: ip_address
+      name: "${friendly_name} IP Address"
+    mac_address:
+      name: "${friendly_name} Mac"
+      id: mac_address
+
+  - platform: navien
+    navien: navien_main
+    name: "${friendly_name} Heating Mode"
+    id: heating_mode
+    heating_mode: true
+  - platform: navien
+    navien: navien_main
+    name: "${friendly_name} Device Type"
+    id: device_type
+    device_type: true
+  - platform: navien
+    navien: navien_main
+    name: "${friendly_name} Operating State"
+    id: operating_state
+    operating_state: true
+  - platform: navien
+    navien: navien_main
+    name: "${friendly_name} Controller Version"
+    id: controller_version
+    controller_version: true
+  - platform: navien
+    navien: navien_main
+    name: "${friendly_name} Panel Version"
+    id: panel_version
+    panel_version: true
+
+water_heater:
+  - platform: navien
+    navien: navien_main
+    id: navien_water_heater
+    min_temperature: 97F
+    max_temperature: 140F
+    name: "${friendly_name} Water Heater"
+
+wifi:
+  on_connect:
+    then:
+      - light.turn_on:
+          id: led
+          brightness: 80%
+          red: 0%
+          green: 100%
+          blue: 0%
+  on_disconnect:
+    then:
+      - light.turn_on:
+          id: led
+          brightness: 80%
+          red: 100%
+          green: 0%
+          blue: 0%

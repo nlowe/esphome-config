@@ -1,0 +1,9 @@
+# See: https://github.com/sensy-one/E1/blob/main/assets/source/main.yaml
+packages:
+  common: !include
+    file: /data/configs/devices/sensy/e1/.common.yaml
+    vars:
+      device_api_key: !secret sensy__e1__office__api_encryption_key
+      device_name: office-sensy-e1
+      device_area: "Office"
+      device_friendly_name: Office Sensy E1

@@ -1,0 +1,8 @@
+packages:
+  common: !include
+    file: /data/configs/devices/sensy/e1/.common.yaml
+    vars:
+      device_api_key: !secret sensy__e1__basement__api_encryption_key
+      device_name: basement-sensy-e1
+      device_friendly_name: "Basement Sensy E1"
+      device_area: "Finished Basement"

@@ -1,0 +1,545 @@
+packages:
+  alloy: !include /data/configs/packages/alloy.yaml
+  ota: !include
+    file: /data/configs/packages/ota.yaml
+    vars:
+      device_api_key: !secret hotsprings__iq2020__hot_tub__api_encryption_key
+  time: !include /data/configs/packages/time.yaml
+  wifi: !include /data/configs/packages/wifi.yaml
+  wifi_ble_proxy: !include /data/configs/packages/wifi_ble_proxy.yaml
+
+esphome:
+  name: hot-tub
+  friendly_name: Hot Tub
+  comment: 2025 HotSpring Envoy
+
+esp32:
+  board: m5stack-atom
+  framework:
+    type: esp-idf
+    advanced:
+      sram1_as_iram: true
+
+logger:
+  baud_rate: 0
+  # level: DEBUG
+  level: INFO
+
+api:
+  actions:
+    # Call from Home Assistant by using the action esphome.hot_tub_set_rtc
+    - action: set_rtc
+      variables:
+        year: int
+        month: int
+        day: int
+        hour: int
+        minute: int
+        second: int
+      then:
+        - lambda: |-
+            if (g_iq2020_main != nullptr) {
+              g_iq2020_main->setTime(hour, minute, second, year, month, day);
+            }
+
+external_components:
+  # See https://github.com/Ylianst/ESP-IQ2020/blob/main/documentation/configuration.md
+  - source: github://ylianst/esp-iq2020
+    refresh: 1h
+
+# M5Stack ATOM Lite
+uart:
+  id: SpaConnection
+  tx_pin: GPIO26
+  rx_pin: GPIO32
+  baud_rate: 38400
+  # debug:
+
+iq2020:
+  uart_id: SpaConnection
+  port: 1234
+  # Set this to false to start up in listen-only mode, which may prevent problems with Freshwater IQ
+  # active: false
+  # Start up in listen-only mode by default and go active automatically after 30s
+  delaystart: 30
+
+# The restart button platform allows you to restart your node remotely through Home Assistant.
+button:
+  - platform: iq2020
+    name: Run Salt Test
+    datapoint: 0
+
+  - platform: iq2020
+    name: Reset Salt Cartridge
+    datapoint: 1
+
+
+  - platform: iq2020
+    name: Confirm Salt Level
+    datapoint: 2
+
+  - platform: restart
+    name: Restart
+    id: restart_button
+    icon: mdi:restart
+
+  - platform: safe_mode
+    name: Restart (Safe Mode)
+    id: safe_mode_button
+    icon: mdi:restart-alert
+
+binary_sensor:
+  - platform: status
+    name: ESP Status
+
+  - platform: iq2020
+    salt_level_confirmed:
+      name: Salt Level Confirmed
+    status_state1:
+      name: Status State 1
+    status_state2:
+      name: Status State 2
+
+select:
+  - platform: iq2020
+    name: Color Underwater
+    id: lights_underwater_color
+    icon: mdi:palette
+    datapoint: 1
+    options:
+      - Violet
+      - Blue
+      - Cyan
+      - Green
+      - White
+      - Yellow
+      - Red
+      - Cycle
+
+  - platform: iq2020
+    name: Color Bartop
+    id: lights_bartop_color
+    icon: mdi:palette
+    datapoint: 2
+    options:
+      - Violet
+      - Blue
+      - Cyan
+      - Green
+      - White
+      - Yellow
+      - Red
+      - Cycle
+
+  - platform: iq2020
+    name: Color Pillow
+    id: lights_pillow_color
+    icon: mdi:palette
+    datapoint: 3
+    options:
+      - Violet
+      - Blue
+      - Cyan
+      - Green
+      - White
+      - Yellow
+      - Red
+      - Cycle
+
+  - platform: iq2020
+    name: Color Exterior
+    id: lights_exterior_color
+    icon: mdi:palette
+    datapoint: 4
+    options:
+      - Violet
+      - Blue
+      - Cyan
+      - Green
+      - White
+      - Yellow
+      - Red
+      - Cycle
+
+  - platform: iq2020
+    name: Color Cycle Speed
+    id: lights_cycle_speed
+    icon: mdi:timer-sync-outline
+    datapoint: 5
+
+number:
+  #jacuzzi salt control
+  - platform: iq2020
+    id: salt_power
+    icon: mdi:test-tube
+    name: Salt System Power
+    datapoint: 5
+
+  - platform: iq2020
+    id: lights_underwater_intensity
+    icon: mdi:brightness-6
+    name: Intensity Underwater
+    datapoint: 7
+    maximum: 5
+
+  - platform: iq2020
+    id: lights_bartop_intensity
+    icon: mdi:brightness-6
+    name: Intensity Bartop
+    datapoint: 8
+    maximum: 5
+
+  - platform: iq2020
+    id: lights_pillow_intensity
+    icon: mdi:brightness-6
+    name: Intensity Pillow
+    datapoint: 9
+    maximum: 5
+
+  - platform: iq2020
+    id: lights_exterior_intensity
+    icon: mdi:brightness-6
+    name: Intensity Exterior
+    datapoint: 10
+    maximum: 5
+
+sensor:
+  - platform: iq2020
+    current_f_temperature:
+      name: Current Temperature
+      icon: mdi:water-thermometer-outline
+      device_class: temperature
+      state_class: measurement
+      unit_of_measurement: °F
+    target_f_temperature:
+      name: Target Temperature
+      icon: mdi:water-thermometer-outline
+      device_class: temperature
+      state_class: measurement
+      unit_of_measurement: °F
+    outlet_f_temperature:
+      name: Heater Outlet
+      icon: mdi:coolant-temperature
+      device_class: temperature
+      state_class: measurement
+      unit_of_measurement: °F
+    pcb_f_temperature:
+      name: Controller Temperature
+      icon: mdi:chip
+      device_class: temperature
+      state_class: measurement
+      unit_of_measurement: °F
+
+    salt_content:
+      name: Salt System Power
+      icon: mdi:test-tube
+      state_class: measurement
+    salt_days_since_manual_test:
+      name: Salt Last Manual Test (Days)
+    salt_cartridge_age_days:
+      name: Salt Cartridge Age (Days)
+      state_class: measurement
+      unit_of_measurement: d
+    salt_generation_hours:
+      name: Salt Generation Hours
+      state_class: measurement
+      unit_of_measurement: h
+    salt_error_code:
+      name: Salt Error Code
+
+    # Always zero? Seems to be sensor error code
+    # https://github.com/Ylianst/ESP-IQ2020/issues/85
+    iq_va:
+      name: IQ Unknown A
+      id: iq_unknown_a
+      icon: mdi:beaker-question
+      state_class: measurement
+    iq_vb:
+      name: IQ Unknown B
+      icon: mdi:beaker-question
+      state_class: measurement
+
+    iq_vc:
+      # PPM?
+      name: IQ Salt
+      icon: mdi:test-tube
+      state_class: measurement
+      unit_of_measurement: ppm
+      #filters:
+      #  # For whatever reason this value reads high by about 500
+      #  # https://github.com/Ylianst/ESP-IQ2020/issues/43#issue-3023475803
+      #  - offset: -500
+
+    iq_orp:
+      # ORP (Oxidation-Reduction Potential) is reported in millivolts (mV) and reflects the actual
+      # sanitizing power of the water; a typical healthy target is roughly 650-750 mV.
+      name: IQ Oxidation-Reduction Potential
+      id: iq_orp
+      icon: mdi:test-tube
+      state_class: measurement
+      unit_of_measurement: mV
+
+    iq_chlorine:
+      # In PPM
+      name: IQ Chlorine
+      icon: mdi:test-tube
+      state_class: measurement
+      unit_of_measurement: ppm
+
+    iq_ph:
+      name: IQ Ph
+      icon: mdi:test-tube
+      device_class: ph
+      state_class: measurement
+
+    iq_hoursleft:
+      name: IQ Hours Left
+      icon: mdi:timer-sand
+      device_class: duration
+      state_class: measurement
+      unit_of_measurement: h
+
+    # Lifetime counters
+    lifetime_runtime:
+      name: Lifetime Runtime
+      id: jacuzzi_total_runtime
+      icon: mdi:timer-sand
+      device_class: duration
+      state_class: total_increasing
+      unit_of_measurement: s
+      accuracy_decimals: 0
+      filters:
+        - lambda: return x / 3.2895;
+    heater_total_runtime:
+      name: Heater Runtime
+      id: heater_total_runtime
+      icon: mdi:timer-sand
+      device_class: duration
+      state_class: total_increasing
+      unit_of_measurement: s
+      accuracy_decimals: 0
+      filters:
+        - lambda: return x / 3.2895;
+    circulation_pump_total_runtime:
+      name: Circulation Pump Runtime
+      id: circulation_pump_total_runtime
+      icon: mdi:timer-sand
+      device_class: duration
+      state_class: total_increasing
+      unit_of_measurement: s
+      accuracy_decimals: 0
+      filters:
+        - lambda: return x / 3.2895;
+    lights_total_runtime:
+      name: Lights Runtime
+      id: lights_total_runtime
+      icon: mdi:timer-sand
+      device_class: duration
+      state_class: total_increasing
+      unit_of_measurement: s
+      accuracy_decimals: 0
+      filters:
+        - lambda: return x / 3.2895;
+    jets1_total_runtime:
+      name: Jets 1 Runtime
+      id: jets1_total_runtime
+      icon: mdi:timer-sand
+      device_class: duration
+      state_class: total_increasing
+      unit_of_measurement: s
+      accuracy_decimals: 0
+      filters:
+        - lambda: return x / 3.2895;
+    jets2_total_runtime:
+      name: Jets 2 Runtime
+      id: jets2_total_runtime
+      icon: mdi:timer-sand
+      device_class: duration
+      state_class: total_increasing
+      unit_of_measurement: s
+      accuracy_decimals: 0
+      filters:
+        - lambda: return x / 3.2895;
+    jet2_low_total_runtime:
+      name: Jets 2 Low Runtime
+      id: jets2_low_total_runtime
+      icon: mdi:timer-sand
+      device_class: duration
+      state_class: total_increasing
+      unit_of_measurement: s
+      accuracy_decimals: 0
+      filters:
+        - lambda: return x / 3.2895;
+    power_on_counter:
+      name: Power On Counter
+      icon: mdi:counter
+      state_class: total_increasing
+
+    power_l1:
+      name: Pump Power
+      icon: mdi:pump
+      device_class: power
+      state_class: measurement
+      unit_of_measurement: W
+    power_heater:
+      name: Small Heater Power
+      icon: mdi:heating-coil
+      device_class: power
+      state_class: measurement
+      unit_of_measurement: W
+    power_l2:
+      name: Heater Power
+      icon: mdi:heating-coil
+      device_class: power
+      state_class: measurement
+      unit_of_measurement: W
+
+    # light sensors
+    logo_lights:
+      name: Logo Lights Diagnostic
+      icon: mdi:lighthouse-on
+      on_value:
+        then:
+          - text_sensor.template.publish:
+              id: logo_lights_text
+              state: !lambda 'return (to_string(int(x)).c_str());'
+
+    lights_intensity:
+      name: Light Intensity
+      icon: mdi:brightness-6
+
+    # Adjust from Home Assistant by calling esphome.hot_tub_set_rtc
+    rtc_timestamp:
+      id: rtc_unix
+      name: "RTC Unix Timestamp"
+
+  - platform: copy
+    source_id: iq_unknown_a
+    name: "IQ Sensor Error Code"
+    icon: mdi:tools
+
+    # network sensors
+  - platform: wifi_signal # Reports the WiFi signal strength/RSSI in dB
+    name: "ESP WiFi Signal dB"
+    id: wifi_signal_db
+    icon: mdi:wifi-arrow-up-down
+    device_class: signal_strength
+    state_class: measurement
+    unit_of_measurement: dBm
+    update_interval: 60s
+    entity_category: "diagnostic"
+  - platform: copy # Reports the WiFi signal strength in %
+    source_id: wifi_signal_db
+    name: "ESP WiFi Signal Percent"
+    icon: mdi:wifi
+    filters:
+      - lambda: return min(max(2 * (x + 100.0), 0.0), 100.0);
+    unit_of_measurement: "Signal %"
+    entity_category: "diagnostic"
+    device_class: ""
+
+    #esp sensors
+  - platform: uptime
+    name: ESP Uptime Sensor
+  - platform: internal_temperature
+    name: "ESP Internal Temperature"
+  - platform: template
+    id: esp_memory
+    icon: mdi:memory
+    name: ESP Free Memory
+    lambda: return heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024;
+    unit_of_measurement: 'kB'
+    state_class: measurement
+    entity_category: "diagnostic"
+
+switch:
+  - platform: iq2020
+    name: Lights
+    id: lights_switch
+    icon: "mdi:lightbulb"
+    datapoint: 0
+  - platform: iq2020
+    name: Spa Lock
+    id: spa_lock_switch
+    icon: "mdi:lock"
+    datapoint: 1
+  - platform: iq2020
+    name: Temperature Lock
+    id: temp_lock_switch
+    icon: "mdi:lock"
+    datapoint: 2
+  - platform: iq2020
+    name: Clean Cycle
+    id: clean_cycle_switch
+    icon: "mdi:vacuum"
+    datapoint: 3
+  - platform: iq2020
+    name: Summer Timer
+    id: summer_timer_switch
+    icon: "mdi:sun-clock"
+    datapoint: 4
+  - platform: iq2020
+    name: Salt Boost
+    id: salt_system_boost
+    datapoint: 8
+  - platform: iq2020
+    name: Active
+    id: active_switch
+    datapoint: 10
+
+fan:
+  - platform: iq2020
+    name: Jets 1
+    id: jets1
+    icon: mdi:pump
+    datapoint: 0
+    speeds: 1
+  - platform: iq2020
+    name: Jets 2
+    id: jets2
+    icon: mdi:pump
+    datapoint: 1
+    speeds: 2
+
+# Set "celsius" to "true" if using celsius units.
+climate:
+  - platform: iq2020
+    name: Temperature
+    icon: mdi:water-thermometer-outline
+    celsius: false
+
+text_sensor:
+    #esp sensors
+  - platform: version
+    name: "ESP Device Version"
+    id: device_esphome_version
+    internal: true
+    icon: 'mdi:chevron-right'
+
+  - platform: iq2020
+    versionstr:
+      name: Version
+    salt_module_status:
+      name: Salt Module Status
+    salt_level_friendly:
+      name: Salt Level Friendly
+    rtc_datetime:
+      id: rtc
+      internal: true
+      entity_category: "diagnostic"
+      name: "Real Time Clock"
+
+  - platform: template
+    id: logo_lights_text
+    name: Logo Lights
+    filters:
+      - map:
+        - 0 -> Unknown
+        - 1 -> Powered on
+        - 2 -> Powered on & Ready
+        - 3 -> Ready flash
+        - 4 -> Power flash
+        - 5 -> Power and Ready flash
+        - 6 -> Power and Ready alternate
+        - 7 -> Power and Ready salt error
+

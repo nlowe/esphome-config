@@ -1,0 +1,13 @@
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "${device_api_key}"
+
+# Enable OTA Updates with the same encryption key
+ota:
+  - platform: esphome
+    encryption:
+
+# Disable web server OTA to hide the warning about unencrypted updates
+web_server:
+  ota: false

@@ -1,0 +1,32 @@
+# See https://github.com/tube0013/TubesZB-ESPHome-Builder/blob/main/esphome-config/tubeszb-zw.yaml
+# See also https://github.com/tube0013/TubesZB-ESPHome-Builder/blob/main/esphome-config/tubeszb-zw-experimental.yaml
+# https://github.com/tube0013/TubesZB-ESPHome-Builder/releases/latest
+
+packages:
+  tubezb-zw: github://tube0013/TubesZB-ESPHome-Builder/esphome-config/tubeszb-zw.yaml@2026.06.24.3
+
+  common: !include /data/configs/devices/tubezb/.common.yaml
+  alloy: !include /data/configs/packages/alloy.yaml
+  ble_proxy: !include /data/configs/packages/ble_proxy.yaml
+  #Olimex ESP32-PoE Ethernet
+  ethernet_static_ip: !include
+    file: /data/configs/packages/ethernet_static_ip.yaml
+    vars:
+      device_ip: 10.69.90.87
+  ota: !include
+    file: /data/configs/packages/ota.yaml
+    vars:
+      device_api_key: !secret tubezb__zw__zwave_controller__api_encryption_key
+  time: !include /data/configs/packages/time.yaml
+
+esp32:
+  board: esp32-poe
+  framework:
+    advanced:
+      minimum_chip_revision: "3.0"
+
+# Fix strapping pin warning for uart (GPIO5)
+uart:
+  tx_pin:
+    number: GPIO5
+    ignore_strapping_warning: true

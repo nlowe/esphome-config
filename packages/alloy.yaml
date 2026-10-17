@@ -1,0 +1,9 @@
+# UDP and Syslog settings for loki logs
+udp:
+  - id: alloy_syslog
+    addresses: ['10.200.200.11']
+    port: 514
+
+syslog:
+  udp_id: alloy_syslog
+  time_id: homeassistant_time

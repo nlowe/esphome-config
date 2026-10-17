@@ -1,0 +1,241 @@
+packages:
+  common: !include
+    file: /data/configs/devices/emporia/vue3/.common.yaml
+    vars:
+      device_api_key: !secret emporia__vue3__vue3a__api_encryption_key
+      device_name: "vue3a"
+      device_ip: "10.69.22.1"
+
+substitutions:
+  # Circuit Labels used for publishing to Home Assistant
+  circuit_1:  "Wall Oven A Phase"
+  circuit_2:  "Wall Oven B Phase"
+  circuit_3:  "Dryer A Phase"
+  circuit_4:  "Dryer B Phase"
+  circuit_5:  "Garage GFCI"
+  circuit_6:  "Bathroom GFCI"
+  circuit_7:  "Media Panel"
+  circuit_8:  "Furnace"
+  circuit_9:  "Fridge"
+  circuit_10: "Washer"
+  circuit_11: "Master Bedroom + Living Room Outlets"
+  circuit_12: "Office + Guest Bedroom"
+  circuit_13: "Fireplace"
+  circuit_14: "Dining Room Outlets"
+  circuit_15: "Basement Lights"
+  circuit_16: "Master Bath + Mudroom Garage + Laundry Lights"
+
+  # Icons for Home Assistant
+  icon_circuit: "mdi:power-plug"
+  icon_current: "mdi:current-ac"
+  icon_meter:   "mdi:meter-electric"
+  icon_phase:   "mdi:angle-acute"
+  icon_power:   "mdi:transmission-tower-import"
+  icon_voltage: "mdi:transmission-tower"
+
+# Filters cannot be !include'd because anchors aren't preserved across includes
+.filters:
+  # these are called references in YAML. They allow you to reuse
+  # this configuration in each sensor, while only defining it once
+  # you can adjust them here, split them up differently, even copy some inline…
+  - &throttle_avg
+    # average all raw readings together over a 5 second span before publishing
+    throttle_average: 5s
+  - &throttle_time
+    # only send the most recent measurement every 60 seconds
+    throttle: 60s
+  - &neg
+    # invert and filter out any values below 0.
+    lambda: 'return max(-x, 0.0f);'
+  - &pos
+    # filter out any values below 0.
+    lambda: 'return max(x, 0.0f);'
+  - &abs
+    # take the absolute value of the value
+    lambda: 'return abs(x);'
+
+sensor:
+  - platform: emporia_vue
+    variant: vue3
+    i2c_id: i2c_a
+    phases:
+      - id: phase_a
+        input: BLACK
+        calibration: 0.01925
+        voltage:
+          id: "phase_a_voltage"
+          name: "Phase A Voltage"
+          filters: [*throttle_avg, *pos]
+        frequency:
+          name: "Phase A Frequency"
+          filters: [*throttle_avg, *pos]
+      - id: phase_b
+        input: RED
+        calibration: 0.01925
+        voltage:
+          id: "phase_b_voltage"
+          name: "Phase B Voltage"
+          filters: [*throttle_avg, *pos]
+        phase_angle:
+          name: "Phase B Phase Angle"
+          filters: [*throttle_avg, *pos]
+
+    ct_clamps:
+      # Do not specify a name for any of the power sensors here, only an id. This leaves the power sensors internal to ESPHome.
+      # These non-throttled power sensors are used for accurately calculating energy.
+      # Copy sensors defined later will filter and then send power measurements to Home Assistant.
+
+      # Main Service CT Clamps (up to 3)
+      # Verify the correct input on the device is connected to the CT clamp phase defined (Vue 3 inputs are inverted)
+      - { input: "A", phase_id: phase_a, power: { id: phase_a_power, device_class: power, filters: [*pos] }, current: { id: phase_a_current } }
+      - { input: "B", phase_id: phase_b, power: { id: phase_b_power, device_class: power, filters: [*pos] }, current: { id: phase_b_current } }
+
+      # Circuit CT Clamps (up to 16)
+      # Pay close attention to set the phase_id for each breaker by matching it to the phase/leg it connects to in the panel
+      # Use *abs filter to always take the positive absolute value
+      # Use *invert filter for inverted positive values (Vue 3 inputs are inverted) or *zero for un-used inputs
+      # Use *double filter for double (240v) breakers (this will assume power is evenly divided between the two legs)
+      # example for double breaker
+      #- { phase_id: phase_a, input: "9", power: { name: "Breaker 2a", id: circuit_9, filters: [ *moving_avg, *invert, multiply: 2 ] } }
+      # example for phase b
+      #- { phase_id: phase_b, input: "10", power: { name: "Breaker 2b - XYZ", id: circuit_10, filters: [ *moving_avg, *invert ] } }
+      - { input: "1",  phase_id: phase_a, power: { id: c1_pwr,  filters: [ *neg ] }, current: { id: c1_cur  } }
+      - { input: "2",  phase_id: phase_b, power: { id: c2_pwr,  filters: [ *neg ] }, current: { id: c2_cur  } }
+      - { input: "3",  phase_id: phase_a, power: { id: c3_pwr,  filters: [ *neg ] }, current: { id: c3_cur  } }
+      - { input: "4",  phase_id: phase_b, power: { id: c4_pwr,  filters: [ *neg ] }, current: { id: c4_cur  } }
+      - { input: "5",  phase_id: phase_a, power: { id: c5_pwr,  filters: [ *neg ] }, current: { id: c5_cur  } }
+      - { input: "6",  phase_id: phase_b, power: { id: c6_pwr,  filters: [ *neg ] }, current: { id: c6_cur  } }
+      - { input: "7",  phase_id: phase_a, power: { id: c7_pwr,  filters: [ *neg ] }, current: { id: c7_cur  } }
+      - { input: "8",  phase_id: phase_b, power: { id: c8_pwr,  filters: [ *neg ] }, current: { id: c8_cur  } }
+      - { input: "9",  phase_id: phase_a, power: { id: c9_pwr,  filters: [ *neg ] }, current: { id: c9_cur  } }
+      - { input: "10", phase_id: phase_b, power: { id: c10_pwr, filters: [ *neg ] }, current: { id: c10_cur } }
+      - { input: "11", phase_id: phase_a, power: { id: c11_pwr, filters: [ *neg ] }, current: { id: c11_cur } }
+      - { input: "12", phase_id: phase_b, power: { id: c12_pwr, filters: [ *neg ] }, current: { id: c12_cur } }
+      - { input: "13", phase_id: phase_a, power: { id: c13_pwr, filters: [ *neg ] }, current: { id: c13_cur } }
+      - { input: "14", phase_id: phase_b, power: { id: c14_pwr, filters: [ *neg ] }, current: { id: c14_cur } }
+      - { input: "15", phase_id: phase_a, power: { id: c15_pwr, filters: [ *neg ] }, current: { id: c15_cur } }
+      - { input: "16", phase_id: phase_b, power: { id: c16_pwr, filters: [ *neg ] }, current: { id: c16_cur } }
+
+    on_update:
+      then:
+        # Update computed current sensors
+        - component.update: phase_a_computed_current
+        - component.update: phase_b_computed_current
+        - component.update: c1_computed_current
+        - component.update: c2_computed_current
+        - component.update: c3_computed_current
+        - component.update: c4_computed_current
+        - component.update: c5_computed_current
+        - component.update: c6_computed_current
+        - component.update: c7_computed_current
+        - component.update: c8_computed_current
+        - component.update: c9_computed_current
+        - component.update: c10_computed_current
+        - component.update: c11_computed_current
+        - component.update: c12_computed_current
+        - component.update: c13_computed_current
+        - component.update: c14_computed_current
+        - component.update: c15_computed_current
+        - component.update: c16_computed_current
+
+        # Then, update "virtual" sensors for 240v breakers
+        - component.update: wall_oven_total_power
+        - component.update: wall_oven_total_current
+        - component.update: dryer_total_power
+        - component.update: dryer_total_current
+
+  # Raw current measurements on the CT Clamps are fucked in the firmware, so compute it instead
+  # See https://github.com/emporia-vue-local/esphome/discussions/337#discussioncomment-12517832
+  - { platform: template, id: phase_a_computed_current,  lambda: return id(phase_a_power).state / id(phase_a_voltage).state;,  update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: phase_b_computed_current,  lambda: return id(phase_b_power).state / id(phase_b_voltage).state;,  update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: c1_computed_current,       lambda: return id(c1_pwr).state / id(phase_a_voltage).state;,         update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: c2_computed_current,       lambda: return id(c2_pwr).state / id(phase_b_voltage).state;,         update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: c3_computed_current,       lambda: return id(c3_pwr).state / id(phase_a_voltage).state;,         update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: c4_computed_current,       lambda: return id(c4_pwr).state / id(phase_b_voltage).state;,         update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: c5_computed_current,       lambda: return id(c5_pwr).state / id(phase_a_voltage).state;,         update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: c6_computed_current,       lambda: return id(c6_pwr).state / id(phase_b_voltage).state;,         update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: c7_computed_current,       lambda: return id(c7_pwr).state / id(phase_a_voltage).state;,         update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: c8_computed_current,       lambda: return id(c8_pwr).state / id(phase_b_voltage).state;,         update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: c9_computed_current,       lambda: return id(c9_pwr).state / id(phase_a_voltage).state;,         update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: c10_computed_current,      lambda: return id(c10_pwr).state / id(phase_b_voltage).state;,        update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: c11_computed_current,      lambda: return id(c11_pwr).state / id(phase_a_voltage).state;,        update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: c12_computed_current,      lambda: return id(c12_pwr).state / id(phase_b_voltage).state;,        update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: c13_computed_current,      lambda: return id(c13_pwr).state / id(phase_a_voltage).state;,        update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: c14_computed_current,      lambda: return id(c14_pwr).state / id(phase_b_voltage).state;,        update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: c15_computed_current,      lambda: return id(c15_pwr).state / id(phase_a_voltage).state;,        update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: c16_computed_current,      lambda: return id(c16_pwr).state / id(phase_b_voltage).state;,        update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+
+  # Template Sensors for 240v breakers
+  - { platform: template, id: wall_oven_total_power,   lambda: return id(c1_pwr).state + id(c2_pwr).state;,                           update_interval: never, device_class: power,   state_class: measurement, unit_of_measurement: "W" }
+  - { platform: template, id: wall_oven_total_current, lambda: return id(c1_computed_current).state + id(c2_computed_current).state;, update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A" }
+  - { platform: template, id: dryer_total_power,       lambda: return id(c3_pwr).state + id(c4_pwr).state;,                           update_interval: never, device_class: power,   state_class: measurement, unit_of_measurement: "W" }
+  - { platform: template, id: dryer_total_current,     lambda: return id(c3_computed_current).state + id(c4_computed_current).state;, update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A" }
+
+  # Copy power sensors to publish the each power state to Home Assistant.
+  - { platform: copy, name: "Phase A Power",       source_id: phase_a_power, filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_power,   device_class: power }
+  - { platform: copy, name: "Phase B Power",       source_id: phase_b_power, filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_power,   device_class: power }
+  - { platform: copy, name: "${circuit_1} Power",  source_id: c1_pwr,        filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "${circuit_2} Power",  source_id: c2_pwr,        filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "${circuit_3} Power",  source_id: c3_pwr,        filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "${circuit_4} Power",  source_id: c4_pwr,        filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "${circuit_5} Power",  source_id: c5_pwr,        filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "${circuit_6} Power",  source_id: c6_pwr,        filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "${circuit_7} Power",  source_id: c7_pwr,        filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "${circuit_8} Power",  source_id: c8_pwr,        filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "${circuit_9} Power",  source_id: c9_pwr,        filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "${circuit_10} Power", source_id: c10_pwr,       filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "${circuit_11} Power", source_id: c11_pwr,       filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "${circuit_12} Power", source_id: c12_pwr,       filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "${circuit_13} Power", source_id: c13_pwr,       filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "${circuit_14} Power", source_id: c14_pwr,       filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "${circuit_15} Power", source_id: c15_pwr,       filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "${circuit_16} Power", source_id: c16_pwr,       filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+
+  - { platform: copy, name: "Wall Oven Total Power", source_id: wall_oven_total_power, filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "Dryer Total Power",     source_id: dryer_total_power,     filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+
+  # Copy current sensors to publish the each current state to Home Assistant.
+  - { platform: copy, name: "Phase A Current",       source_id: phase_a_computed_current, filters: *throttle_avg, accuracy_decimals: 2, icon: $icon_current }
+  - { platform: copy, name: "Phase B Current",       source_id: phase_b_computed_current, filters: *throttle_avg, accuracy_decimals: 2, icon: $icon_current }
+  - { platform: copy, name: "${circuit_1} Current",  source_id: c1_computed_current,      filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "${circuit_2} Current",  source_id: c2_computed_current,      filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "${circuit_3} Current",  source_id: c3_computed_current,      filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "${circuit_4} Current",  source_id: c4_computed_current,      filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "${circuit_5} Current",  source_id: c5_computed_current,      filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "${circuit_6} Current",  source_id: c6_computed_current,      filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "${circuit_7} Current",  source_id: c7_computed_current,      filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "${circuit_8} Current",  source_id: c8_computed_current,      filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "${circuit_9} Current",  source_id: c9_computed_current,      filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "${circuit_10} Current", source_id: c10_computed_current,     filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "${circuit_11} Current", source_id: c11_computed_current,     filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "${circuit_12} Current", source_id: c12_computed_current,     filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "${circuit_13} Current", source_id: c13_computed_current,     filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "${circuit_14} Current", source_id: c14_computed_current,     filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "${circuit_15} Current", source_id: c15_computed_current,     filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "${circuit_16} Current", source_id: c16_computed_current,     filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+
+  - { platform: copy, name: "Wall Oven Total Current", source_id: wall_oven_total_current, filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "Dryer Total Current",     source_id: dryer_total_current,     filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+
+  # The total daily energy sensors to be published to Home Assistant
+  - { platform: total_daily_energy, name: "Phase A Daily Energy",       power_id: phase_a_power, filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "Phase B Daily Energy",       power_id: phase_b_power, filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "${circuit_1} Daily Energy",  power_id: c1_pwr,        filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "${circuit_2} Daily Energy",  power_id: c2_pwr,        filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "${circuit_3} Daily Energy",  power_id: c3_pwr,        filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "${circuit_4} Daily Energy",  power_id: c4_pwr,        filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "${circuit_5} Daily Energy",  power_id: c5_pwr,        filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "${circuit_6} Daily Energy",  power_id: c6_pwr,        filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "${circuit_7} Daily Energy",  power_id: c7_pwr,        filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "${circuit_8} Daily Energy",  power_id: c8_pwr,        filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "${circuit_9} Daily Energy",  power_id: c9_pwr,        filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "${circuit_10} Daily Energy", power_id: c10_pwr,       filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "${circuit_11} Daily Energy", power_id: c11_pwr,       filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "${circuit_12} Daily Energy", power_id: c12_pwr,       filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "${circuit_13} Daily Energy", power_id: c13_pwr,       filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "${circuit_14} Daily Energy", power_id: c14_pwr,       filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "${circuit_15} Daily Energy", power_id: c15_pwr,       filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "${circuit_16} Daily Energy", power_id: c16_pwr,       filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+
+  - { platform: total_daily_energy, name: "Wall Oven Total Daily Energy", power_id: wall_oven_total_power, filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "Dryer Total Daily Energy",     power_id: dryer_total_power,     filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }

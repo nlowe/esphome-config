@@ -1,0 +1,178 @@
+packages:
+  common: !include
+    file: /data/configs/devices/emporia/vue3/.common.yaml
+    vars:
+      device_api_key: !secret emporia__vue3__vue3c__api_encryption_key
+      device_name: "vue3c"
+      device_ip: "10.69.22.3"
+
+substitutions:
+  # Circuit Labels used for publishing to Home Assistant
+  circuit_1:  "Foyer + Guest Bath + Kitchen + Dining + Family Lights"
+  circuit_2:  "Car Charger B Phase"
+  circuit_3:  "Car Charger A Phase"
+  circuit_4:  "Server Rack #1 A Phase"
+  circuit_5:  "Server Rack #1 B Phase"
+  circuit_6:  "Server Rack #2 + Emporia A Phase"
+  circuit_7:  "Server Rack #2 + Emporia B Phase"
+
+  # Icons for Home Assistant
+  icon_circuit: "mdi:power-plug"
+  icon_current: "mdi:current-ac"
+  icon_meter:   "mdi:meter-electric"
+  icon_phase:   "mdi:angle-acute"
+  icon_power:   "mdi:transmission-tower-import"
+  icon_voltage: "mdi:transmission-tower"
+
+.filters:
+  # these are called references in YAML. They allow you to reuse
+  # this configuration in each sensor, while only defining it once
+  # you can adjust them here, split them up differently, even copy some inline…
+  - &throttle_avg
+    # average all raw readings together over a 5 second span before publishing
+    throttle_average: 5s
+  - &throttle_time
+    # only send the most recent measurement every 60 seconds
+    throttle: 60s
+  - &neg
+    # invert and filter out any values below 0.
+    lambda: 'return max(-x, 0.0f);'
+  - &pos
+    # filter out any values below 0.
+    lambda: 'return max(x, 0.0f);'
+  - &abs
+    # take the absolute value of the value
+    lambda: 'return abs(x);'
+
+sensor:
+  - platform: emporia_vue
+    variant: vue3
+    i2c_id: i2c_a
+    phases:
+      - id: phase_a
+        input: BLACK
+        calibration: 0.01925
+        voltage:
+          id: phase_a_voltage
+          name: "Phase A Voltage"
+          filters: [*throttle_avg, *pos]
+        frequency:
+          name: "Phase A Frequency"
+          filters: [*throttle_avg, *pos]
+      - id: phase_b
+        input: RED
+        calibration: 0.01925
+        voltage:
+          id: phase_b_voltage
+          name: "Phase B Voltage"
+          filters: [*throttle_avg, *pos]
+        phase_angle:
+          name: "Phase B Phase Angle"
+          filters: [*throttle_avg, *pos]
+
+    ct_clamps:
+      # Do not specify a name for any of the power sensors here, only an id. This leaves the power sensors internal to ESPHome.
+      # These non-throttled power sensors are used for accurately calculating energy.
+      # Copy sensors defined later will filter and then send power measurements to Home Assistant.
+
+      # Circuit CT Clamps (up to 16)
+      # Pay close attention to set the phase_id for each breaker by matching it to the phase/leg it connects to in the panel
+      # Use *abs filter to always take the positive absolute value
+      # Use *invert filter for inverted positive values (Vue 3 inputs are inverted) or *zero for un-used inputs
+      # Use *double filter for double (240v) breakers (this will assume power is evenly divided between the two legs)
+      # example for double breaker
+      #- { phase_id: phase_a, input: "9", power: { name: "Breaker 2a", id: circuit_9, filters: [ *moving_avg, *invert, multiply: 2 ] } }
+      # example for phase b
+      #- { phase_id: phase_b, input: "10", power: { name: "Breaker 2b - XYZ", id: circuit_10, filters: [ *moving_avg, *invert ] } }
+      - { input: "1",  phase_id: phase_a, power: { id: c1_pwr,  filters: [ *neg ] }, current: { id: c1_cur  } }
+      - { input: "2",  phase_id: phase_b, power: { id: c2_pwr,  filters: [ *neg ] }, current: { id: c2_cur  } }
+      - { input: "3",  phase_id: phase_a, power: { id: c3_pwr,  filters: [ *neg ] }, current: { id: c3_cur  } }
+      - { input: "4",  phase_id: phase_a, power: { id: c4_pwr,  filters: [ *neg ] }, current: { id: c4_cur  } }
+      - { input: "5",  phase_id: phase_b, power: { id: c5_pwr,  filters: [ *neg ] }, current: { id: c5_cur  } }
+      # These two clamps were installed backwards, so we need the `pos` filter instead
+      - { input: "6",  phase_id: phase_a, power: { id: c6_pwr,  filters: [ *pos ] }, current: { id: c6_cur  } }
+      - { input: "7",  phase_id: phase_b, power: { id: c7_pwr,  filters: [ *pos ] }, current: { id: c7_cur  } }
+
+    on_update:
+      then:
+        - component.update: c1_computed_current
+        - component.update: c2_computed_current
+        - component.update: c3_computed_current
+        - component.update: c4_computed_current
+        - component.update: c5_computed_current
+        - component.update: c6_computed_current
+        - component.update: c7_computed_current
+
+        # Then, update "virtual" sensors for 240v breakers
+        - component.update: car_charger_total_power
+        - component.update: car_charger_total_current
+        - component.update: server_rack_1_total_power
+        - component.update: server_rack_1_total_current
+        - component.update: server_rack_2_total_power
+        - component.update: server_rack_2_total_current
+
+        # And finally the big one that spans both server rack breakers
+        - component.update: server_rack_total_power
+        - component.update: server_rack_total_current
+
+  # Raw current measurements on the CT Clamps are fucked in the firmware, so compute it instead
+  # See https://github.com/emporia-vue-local/esphome/discussions/337#discussioncomment-12517832
+  - { platform: template, id: c1_computed_current, lambda: return id(c1_pwr).state / id(phase_a_voltage).state;, update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: c2_computed_current, lambda: return id(c2_pwr).state / id(phase_b_voltage).state;, update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: c3_computed_current, lambda: return id(c3_pwr).state / id(phase_a_voltage).state;, update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: c4_computed_current, lambda: return id(c4_pwr).state / id(phase_a_voltage).state;, update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: c5_computed_current, lambda: return id(c5_pwr).state / id(phase_b_voltage).state;, update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: c6_computed_current, lambda: return id(c6_pwr).state / id(phase_a_voltage).state;, update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+  - { platform: template, id: c7_computed_current, lambda: return id(c7_pwr).state / id(phase_b_voltage).state;, update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A"}
+
+  # Template Sensors for 240v breakers
+  - { platform: template, id: car_charger_total_power,     lambda: return id(c2_pwr).state + id(c3_pwr).state;,                                           update_interval: never, device_class: power,   state_class: measurement, unit_of_measurement: "W" }
+  - { platform: template, id: car_charger_total_current,   lambda: return id(c2_computed_current).state + id(c3_computed_current).state;,                 update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A" }
+  - { platform: template, id: server_rack_1_total_power,   lambda: return id(c4_pwr).state + id(c5_pwr).state;,                                           update_interval: never, device_class: power,   state_class: measurement, unit_of_measurement: "W" }
+  - { platform: template, id: server_rack_1_total_current, lambda: return id(c4_computed_current).state + id(c5_computed_current).state;,                 update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A" }
+  - { platform: template, id: server_rack_2_total_power,   lambda: return id(c6_pwr).state + id(c7_pwr).state;,                                           update_interval: never, device_class: power,   state_class: measurement, unit_of_measurement: "W" }
+  - { platform: template, id: server_rack_2_total_current, lambda: return id(c6_computed_current).state + id(c7_computed_current).state;,                 update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A" }
+  - { platform: template, id: server_rack_total_power,     lambda: return id(server_rack_1_total_power).state + id(server_rack_2_total_power).state;,     update_interval: never, device_class: power,   state_class: measurement, unit_of_measurement: "W" }
+  - { platform: template, id: server_rack_total_current,   lambda: return id(server_rack_1_total_current).state + id(server_rack_2_total_current).state;, update_interval: never, device_class: current, state_class: measurement, unit_of_measurement: "A" }
+
+  # Copy sensors to publish the each power state to Home Assistant.
+  - { platform: copy, name: "${circuit_1} Power", source_id: c1_pwr, filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "${circuit_2} Power", source_id: c2_pwr, filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "${circuit_3} Power", source_id: c3_pwr, filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "${circuit_4} Power", source_id: c4_pwr, filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "${circuit_5} Power", source_id: c5_pwr, filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "${circuit_6} Power", source_id: c6_pwr, filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "${circuit_7} Power", source_id: c7_pwr, filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+
+  - { platform: copy, name: "Car Charger Total Power",    source_id: car_charger_total_power,   filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "Server Rack #1 Total Power", source_id: server_rack_1_total_power, filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "Server Rack #2 Total Power",       source_id: server_rack_2_total_power, filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+  - { platform: copy, name: "Server Rack Total Power",    source_id: server_rack_total_power,   filters: *throttle_avg, accuracy_decimals: 0, icon: $icon_circuit, device_class: power }
+
+  # Copy sensors to publish the each current state to Home Assistant.
+  - { platform: copy, name: "${circuit_1} Current", source_id: c1_computed_current, filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "${circuit_2} Current", source_id: c2_computed_current, filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "${circuit_3} Current", source_id: c3_computed_current, filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "${circuit_4} Current", source_id: c4_computed_current, filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "${circuit_5} Current", source_id: c5_computed_current, filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "${circuit_6} Current", source_id: c6_computed_current, filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "${circuit_7} Current", source_id: c7_computed_current, filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+
+  - { platform: copy, name: "Car Charger Total Current",    source_id: car_charger_total_current,   filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "Server Rack #1 Total Current", source_id: server_rack_1_total_current, filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "Server Rack #2 Total Current", source_id: server_rack_2_total_current, filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+  - { platform: copy, name: "Server Rack Total Current",    source_id: server_rack_total_current,   filters: *throttle_avg, accuracy_decimals: 1, icon: $icon_current }
+
+  # The total daily energy sensors to be published to Home Assistant
+  - { platform: total_daily_energy, name: "${circuit_1} Daily Energy", power_id: c1_pwr, filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "${circuit_2} Daily Energy", power_id: c2_pwr, filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "${circuit_3} Daily Energy", power_id: c3_pwr, filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "${circuit_4} Daily Energy", power_id: c4_pwr, filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "${circuit_5} Daily Energy", power_id: c5_pwr, filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "${circuit_6} Daily Energy", power_id: c6_pwr, filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "${circuit_7} Daily Energy", power_id: c7_pwr, filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+
+  - { platform: total_daily_energy, name: "Car Charger Total Daily Energy",    power_id: car_charger_total_power,   filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "Server Rack #1 Total Daily Energy", power_id: server_rack_1_total_power, filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "Server Rack #2 Total Daily Energy", power_id: server_rack_2_total_power, filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }
+  - { platform: total_daily_energy, name: "Server Rack Total Daily Energy",    power_id: server_rack_total_power,   filters: *throttle_time, accuracy_decimals: 0, restore: false, icon: $icon_meter }

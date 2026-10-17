@@ -1,0 +1,6 @@
+.vscode/
+secrets.yaml
+.bak
+.backup
+.esphome/
+.platformio/

@@ -1,0 +1,34 @@
+# See https://github.com/tube0013/TubesZB-ESPHome-Builder/blob/main/esphome-config/tubeszb-efr32-mgm24-2023.yaml
+# https://github.com/tube0013/TubesZB-ESPHome-Builder/releases/latest
+
+packages:
+  tubeszb-efr32-mgm24-2023: github://tube0013/TubesZB-ESPHome-Builder/esphome-config/tubeszb-efr32-mgm24-2023.yaml@2026.06.24.3
+
+  common: !include /data/configs/devices/tubezb/.common.yaml
+  alloy: !include /data/configs/packages/alloy.yaml
+  ble_proxy: !include /data/configs/packages/ble_proxy.yaml
+  #Olimex ESP32-PoE Ethernet
+  ethernet_static_ip: !include
+    file: /data/configs/packages/ethernet_static_ip.yaml
+    vars:
+      device_ip: 10.69.206.233
+  ota: !include
+    file: /data/configs/packages/ota.yaml
+    vars:
+      device_api_key: !secret tubezb__efr32-mgm24__zigbee_controller__api_encryption_key
+  time: !include /data/configs/packages/time.yaml
+
+esp32:
+  framework:
+    advanced:
+      minimum_chip_revision: "3.1"
+      sram1_as_iram: true
+
+# TODO: Fix duplicate OTA platform warnings
+
+# Fix strapping pin warning on reset switch (GPIO5)
+switch:
+  - id: !extend zRST_gpio
+    pin:
+      number: GPIO5
+      ignore_strapping_warning: true

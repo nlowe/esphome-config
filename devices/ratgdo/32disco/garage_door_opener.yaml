@@ -1,0 +1,33 @@
+# See https://github.com/ratgdo/esphome-ratgdo/blob/main/static/v32disco.yaml
+
+packages:
+  # https://github.com/ratgdo/esphome-ratgdo/releases/latest
+  ratgdo.esphome: github://ratgdo/esphome-ratgdo/v32disco.yaml@v1629
+
+  alloy: !include /data/configs/packages/alloy.yaml
+  ota: !include
+    file: /data/configs/packages/ota.yaml
+    vars:
+      device_api_key: !secret ratgdo__32disco__garage_door_opener__api_encryption_key
+  # Time is already defined by ratgdo.esphome
+  wifi: !include /data/configs/packages/wifi.yaml
+  wifi_ble_proxy: !include /data/configs/packages/wifi_ble_proxy.yaml
+
+substitutions:
+  name: ratgdo32disco-f23978
+  friendly_name: Garage Door Opener
+
+esp32:
+  framework:
+    advanced:
+      minimum_chip_revision: "3.1"
+
+esphome:
+  name: ${name}
+  name_add_mac_suffix: false
+  friendly_name: ${friendly_name}
+
+# Fix duplicate OTA platform warnings
+ota:
+  - id: !remove ratgdo32disco_ratgdo_ota
+  - id: !remove ratgdo32disco__ratgdo_ota_ws

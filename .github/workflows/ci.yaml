@@ -1,0 +1,44 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@master
+
+      - name: Compute Docker Volume Cache Key
+        id: cache_key
+        run: |
+          VOLUME_CACHE_KEY=$(make esphome-version | md5sum | cut -d ' ' -f 1)
+          echo "VOLUME_CACHE_KEY=$VOLUME_CACHE_KEY" >> $GITHUB_OUTPUT
+
+      - name: Restore ESPHome Cache
+        id: restore_cache
+        uses: BYK/docker-volume-cache-action/restore@main
+        with:
+          key: docker-volumes-v1-${{ steps.cache_key.outputs.VOLUME_CACHE_KEY }}
+          restore-keys: |
+            docker-volumes-v1-
+          volumes: |
+            esphome-lint-cache
+
+      - name: Check Config
+        if: ${{ !cancelled() }}
+        run: make lint
+
+      - uses: editorconfig-checker/action-editorconfig-checker@main
+        if: ${{ !cancelled() }}
+
+      - run: editorconfig-checker
+        if: ${{ !cancelled() }}
+
+      - name: Save ESPHome Cache
+        if: ${{ !cancelled() }}
+        uses: BYK/docker-volume-cache-action/save@main
+        with:
+          key: ${{ steps.restore_cache.outputs.cache-primary-key }}
+          volumes: |
+            esphome-lint-cache

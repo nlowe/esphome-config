@@ -1,0 +1,2 @@
+bluetooth_proxy:
+  connection_slots: 3 # This is a wifi device, keep the default 3 connection slots

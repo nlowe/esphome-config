@@ -1,0 +1,12 @@
+api:
+  reboot_timeout: 0s
+
+web_server:
+  js_include: !remove
+  js_url: "https://oi.esphome.io/v3/www.js"
+
+# Fix strapping pin warning for ethernet (GPIO12)
+ethernet:
+  power_pin:
+    number: GPIO12
+    ignore_strapping_warning: true

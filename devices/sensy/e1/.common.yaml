@@ -1,0 +1,25 @@
+# https://github.com/sensy-one/E1/releases/latest
+packages:
+  e1: "github://sensy-one/E1/assets/source/main.yaml@v1.2.5"
+
+  alloy: !include /data/configs/packages/alloy.yaml
+  ble_proxy: !include /data/configs/packages/ble_proxy.yaml
+  ota: !include
+    file: /data/configs/packages/ota.yaml
+    vars:
+      device_api_key: "${device_api_key}"
+  time: !include /data/configs/packages/time.yaml
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/sensy-one/E1.git
+      ref: "v1.2.5"
+      path: assets/source/components
+    components: ['e1']
+
+esphome:
+  name: "${device_name}"
+  area: "${device_area}"
+  friendly_name: "${device_friendly_name}"
+  name_add_mac_suffix: false

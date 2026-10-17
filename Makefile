@@ -20,7 +20,7 @@ endef
 # The configuration (this repo) is mounted read-only, and a docker volume is used for the esphome and platformio cache.
 define esphome_cmd
 	$(eval $@_CMD = $(1))
-	docker run -it --rm \
+	docker run -i --rm \
 		-v "$(MAKEFILE_DIR):/data/configs:ro" \
 		-v esphome-lint-cache:/cache \
 		-w /data \

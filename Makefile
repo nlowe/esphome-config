@@ -1,4 +1,4 @@
-ESPHOME_VERSION ?= 2026.9.1
+ESPHOME_VERSION ?= 2026.10.0
 
 device_name_for = $(subst /,__,$(device:devices/%=%))
 

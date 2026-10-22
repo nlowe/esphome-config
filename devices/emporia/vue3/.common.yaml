@@ -25,6 +25,7 @@ packages:
   time: !include /data/configs/packages/time.yaml
 
 external_components:
+  # https://github.com/emporia-vue-local/esphome
   - source: github://emporia-vue-local/esphome@dev
     components:
       - emporia_vue

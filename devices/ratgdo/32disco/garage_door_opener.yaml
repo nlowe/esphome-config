@@ -2,7 +2,7 @@
 
 packages:
   # https://github.com/ratgdo/esphome-ratgdo/releases/latest
-  ratgdo.esphome: github://ratgdo/esphome-ratgdo/v32disco.yaml@v1629
+  ratgdo.esphome: github://ratgdo/esphome-ratgdo/v32disco.yaml@v1635
 
   alloy: !include /data/configs/packages/alloy.yaml
   ota: !include

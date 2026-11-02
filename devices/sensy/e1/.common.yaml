@@ -1,6 +1,6 @@
 # https://github.com/sensy-one/E1/releases/latest
 packages:
-  e1: "github://sensy-one/E1/assets/source/main.yaml@v1.2.5"
+  e1: "github://sensy-one/E1/assets/source/main.yaml@v1.2.6"
 
   alloy: !include /data/configs/packages/alloy.yaml
   ble_proxy: !include /data/configs/packages/ble_proxy.yaml
@@ -14,7 +14,7 @@ external_components:
   - source:
       type: git
       url: https://github.com/sensy-one/E1.git
-      ref: "v1.2.5"
+      ref: "v1.2.6"
       path: assets/source/components
     components: ['e1']
 

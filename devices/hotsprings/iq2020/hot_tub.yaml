@@ -18,6 +18,7 @@ esp32:
   framework:
     type: esp-idf
     advanced:
+      flash_chip: gd
       sram1_as_iram: true
 
 logger:
@@ -73,10 +74,10 @@ button:
     name: Reset Salt Cartridge
     datapoint: 1
 
-
   - platform: iq2020
     name: Confirm Salt Level
     datapoint: 2
+
 
   - platform: restart
     name: Restart
@@ -93,6 +94,12 @@ binary_sensor:
     name: ESP Status
 
   - platform: iq2020
+    connected:
+      name: Connected
+    connectionkit:
+      name: ConnectionKit Present
+    salt_boost:
+      name: Salt Boost Active
     salt_level_confirmed:
       name: Salt Level Confirmed
     status_state1:
@@ -231,18 +238,23 @@ sensor:
       unit_of_measurement: °F
 
     salt_content:
-      name: Salt System Power
+      name: Salt Content
       icon: mdi:test-tube
       state_class: measurement
     salt_days_since_manual_test:
       name: Salt Last Manual Test (Days)
+      state_class: measurement
+      device_class: duration
+      unit_of_measurement: d
     salt_cartridge_age_days:
       name: Salt Cartridge Age (Days)
       state_class: measurement
+      device_class: duration
       unit_of_measurement: d
     salt_generation_hours:
       name: Salt Generation Hours
       state_class: measurement
+      device_class: duration
       unit_of_measurement: h
     salt_error_code:
       name: Salt Error Code

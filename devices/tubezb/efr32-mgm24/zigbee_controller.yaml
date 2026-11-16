@@ -1,17 +1,20 @@
-# See https://github.com/tube0013/TubesZB-ESPHome-Builder/blob/main/esphome-config/tubeszb-efr32-mgm24-2023.yaml
+# See https://github.com/tube0013/TubesZB-ESPHome-Builder/blob/main/manifests/tubeszb-efr32-mgm24-2023.yaml
 # https://github.com/tube0013/TubesZB-ESPHome-Builder/releases/latest
 
 packages:
-  tubeszb-efr32-mgm24-2023: github://tube0013/TubesZB-ESPHome-Builder/esphome-config/tubeszb-efr32-mgm24-2023.yaml@2026.06.24.3
+  tubeszb-efr32-mgm24-2023: github://tube0013/TubesZB-ESPHome-Builder/esphome-config/tubeszb-efr32-mgm24-2023.yaml@2026.10.29.1
 
   common: !include /data/configs/devices/tubezb/.common.yaml
   alloy: !include /data/configs/packages/alloy.yaml
   ble_proxy: !include /data/configs/packages/ble_proxy.yaml
   #Olimex ESP32-PoE Ethernet
-  ethernet_static_ip: !include
-    file: /data/configs/packages/ethernet_static_ip.yaml
-    vars:
-      device_ip: 10.69.206.233
+  # Firmware 2026.10.29.1+ ships with a new vibe coded network stack that hasn't even been merged yet, and cannot accept
+  # static IP configuration at build time and provides no way to migrate automatically.
+  #
+  # ethernet_static_ip: !include
+  #   file: /data/configs/packages/ethernet_static_ip.yaml
+  #   vars:
+  #     device_ip: 10.69.206.233
   ota: !include
     file: /data/configs/packages/ota.yaml
     vars:
@@ -23,8 +26,15 @@ esp32:
     advanced:
       minimum_chip_revision: "3.1"
       sram1_as_iram: true
+    sdkconfig_options:
+      # Work around socket count warning
+      CONFIG_LWIP_MAX_SOCKETS: '19'
 
 # TODO: Fix duplicate OTA platform warnings
+
+# Fix stream_server buffer_size removal warning
+stream_server:
+  buffer_size: !remove
 
 # Fix strapping pin warning on reset switch (GPIO5)
 switch:

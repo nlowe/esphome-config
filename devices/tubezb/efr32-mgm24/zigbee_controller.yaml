@@ -1,10 +1,10 @@
 # See https://github.com/tube0013/TubesZB-ESPHome-Builder/blob/main/manifests/tubeszb-efr32-mgm24-2023.yaml
-# https://github.com/tube0013/TubesZB-ESPHome-Builder/releases/latest
-
 packages:
-  tubeszb-efr32-mgm24-2023: github://tube0013/TubesZB-ESPHome-Builder/esphome-config/tubeszb-efr32-mgm24-2023.yaml@2026.10.29.1
+  common: !include
+    file: /data/configs/devices/tubezb/.common.yaml
+    vars:
+      device_kind: efr32-mgm24-2023
 
-  common: !include /data/configs/devices/tubezb/.common.yaml
   alloy: !include /data/configs/packages/alloy.yaml
   ble_proxy: !include /data/configs/packages/ble_proxy.yaml
   #Olimex ESP32-PoE Ethernet
@@ -28,7 +28,7 @@ esp32:
       sram1_as_iram: true
     sdkconfig_options:
       # Work around socket count warning
-      CONFIG_LWIP_MAX_SOCKETS: '19'
+      CONFIG_LWIP_MAX_SOCKETS: '24'
 
 # TODO: Fix duplicate OTA platform warnings
 

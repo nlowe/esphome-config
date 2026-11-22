@@ -21,6 +21,7 @@ esp32:
   framework:
     advanced:
       minimum_chip_revision: "3.1"
+      flash_chip: generic
 
 esphome:
   name: ${name}

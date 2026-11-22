@@ -1,11 +1,11 @@
 # See https://github.com/tube0013/TubesZB-ESPHome-Builder/blob/main/manifests/tubeszb-zw.yaml
 # See also https://github.com/tube0013/TubesZB-ESPHome-Builder/blob/main/manifests/tubeszb-zw-experimental.yaml
-# https://github.com/tube0013/TubesZB-ESPHome-Builder/releases/latest
-
 packages:
-  tubezb-zw: github://tube0013/TubesZB-ESPHome-Builder/esphome-config/tubeszb-zw.yaml@2026.10.29.1
+  common: !include
+    file: /data/configs/devices/tubezb/.common.yaml
+    vars:
+      device_kind: zw
 
-  common: !include /data/configs/devices/tubezb/.common.yaml
   alloy: !include /data/configs/packages/alloy.yaml
   ble_proxy: !include /data/configs/packages/ble_proxy.yaml
   #Olimex ESP32-PoE Ethernet
@@ -28,6 +28,9 @@ esp32:
     advanced:
       flash_chip: generic
       minimum_chip_revision: "3.0"
+    sdkconfig_options:
+      # Work around socket count warning
+      CONFIG_LWIP_MAX_SOCKETS: '20'
 
 # Fix strapping pin warning for uart (GPIO5)
 uart:

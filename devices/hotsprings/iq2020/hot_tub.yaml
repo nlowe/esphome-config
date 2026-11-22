@@ -98,8 +98,6 @@ binary_sensor:
       name: Connected
     connectionkit:
       name: ConnectionKit Present
-    salt_boost:
-      name: Salt Boost Active
     salt_level_confirmed:
       name: Salt Level Confirmed
     status_state1:

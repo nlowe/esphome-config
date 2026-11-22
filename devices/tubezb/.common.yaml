@@ -1,3 +1,8 @@
+# https://github.com/tube0013/TubesZB-ESPHome-Builder/releases/latest
+# NOTE: Doesn't currently compile on 2026.11.0: See https://github.com/tube0013/TubesZB-ESPHome-Builder/issues/209
+packages:
+  tubezb: "github://tube0013/TubesZB-ESPHome-Builder/esphome-config/tubeszb-${device_kind}.yaml@2026.10.29.1"
+
 api:
   reboot_timeout: 0s
 

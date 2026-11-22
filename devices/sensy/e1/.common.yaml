@@ -18,8 +18,16 @@ external_components:
       path: assets/source/components
     components: ['e1']
 
+esp32:
+  framework:
+    advanced:
+      flash_chip: winbond
+
 esphome:
   name: "${device_name}"
   area: "${device_area}"
   friendly_name: "${device_friendly_name}"
   name_add_mac_suffix: false
+
+logger:
+  level: WARN

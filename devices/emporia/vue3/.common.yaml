@@ -11,6 +11,7 @@ esp32:
     version: recommended
     advanced:
       minimum_chip_revision: "3.1"
+      flash_chip: generic
 
 packages:
   alloy: !include /data/configs/packages/alloy.yaml

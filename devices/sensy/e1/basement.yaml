@@ -6,3 +6,6 @@ packages:
       device_name: basement-sensy-e1
       device_friendly_name: "Basement Sensy E1"
       device_area: "Finished Basement"
+
+  # Uncomment to run the device in IRK Capture Mode. This disables the bluetooth proxy.
+  # irk_capture: !include /data/configs/packages/irk_capture.yaml
